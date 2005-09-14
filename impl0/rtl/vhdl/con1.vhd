@@ -7,7 +7,30 @@
 --
 -- dependency: con_pkg.vhd 
 --
+-- Author: M. Umair Siddiqui (umairsiddiqui@opencores.org)
 ---------------------------------------------------------------
+------------------------------------------------------------------------------------
+--                                                                                --
+--    Copyright (c) 2005, M. Umair Siddiqui all rights reserved                   --
+--                                                                                --
+--    This file is part of HPC-16.                                                --
+--                                                                                --
+--    HPC-16 is free software; you can redistribute it and/or modify              --
+--    it under the terms of the GNU Lesser General Public License as published by --
+--    the Free Software Foundation; either version 2.1 of the License, or         --
+--    (at your option) any later version.                                         --
+--                                                                                --
+--    HPC-16 is distributed in the hope that it will be useful,                   --
+--    but WITHOUT ANY WARRANTY; without even the implied warranty of              --
+--    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               --
+--    GNU Lesser General Public License for more details.                         --
+--                                                                                --
+--    You should have received a copy of the GNU Lesser General Public License    --
+--    along with HPC-16; if not, write to the Free Software                       --
+--    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA   --
+--                                                                                --
+------------------------------------------------------------------------------------
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use work.con_pkg.all;
@@ -80,9 +103,7 @@ architecture rtl of con1 is
    signal cur_state , nxt_state : state; 
    signal cur_ic : ic; 
    signal asopsel : std_logic_vector(3 downto 0);
-   
-   for all : sync use entity work.sync(behave2);
-        
+           
 begin
    rsync : sync
    port map 
@@ -90,14 +111,11 @@ begin
       d => RST_I, clk => CLK_I, q => rst_sync
    ); 
       
-   -- uncomment these line to additional synchronization of ACK_I   
    async : sync
    port map 
    (
       d => ACK_I, clk => CLK_I, q => ack_sync
    );
-   -- and comment line below
-   -- ack_sync <= ACK_I;
    
    isync : sync 
    port map
@@ -173,18 +191,47 @@ begin
    process(cur_state, cur_ic, jcc_ok, int_flag, pc0, sp0, tr20, mar0, ir_high(2 downto 0),
            ack_sync, intr_sync, rst_sync)
    begin
-      SEL_O <= "00"; STB_O <= '0'; CYC_O <= '0'; WE_O <= '0'; INTA_CYC_O <= '0';
-      C_CYC_O <= '0'; I_CYC_O <= '0'; D_CYC_O <= '0'; intr_ce <= '0';
-      ir_ce <= '0'; mdri_ce <= '0'; mdri_hl_zse_sign <= '0'; intno_mux_sel <= "000";
-      adin_mux_sel <= "000"; rf_adwe <= '0'; pcin_mux_sel <= "00"; pc_pre <= '0';
-      pc_ce <= '0'; spin_mux_sel <= '0'; sp_pre <= '0'; sp_ce <= '0';
-      alua_mux_sel <= "00"; alub_mux_sel <= "000"; sbin_mux_sel <= '0';
-      asopsel <= "0000"; coszin_mux_sel <= '0'; flags_rst <= '0';
-      flags_ce <= '0'; flags_cfce <= '0'; flags_ifce <= '0';
-      flags_clc <= '0'; flags_cmc <= '0'; flags_stc <= '0';
-      flags_cli <= '0'; flags_sti <= '0'; marin_mux_sel <= "00";
-      mar_ce <= '0'; dfh_ce <= '0'; mdroin_mux_sel <= "000";
-      mdro_ce <= '0'; mdro_oe <= '0'; 
+      SEL_O <= "00"; 
+      STB_O <= '0'; 
+      CYC_O <= '0'; 
+      WE_O <= '0'; 
+      INTA_CYC_O <= '0';
+      C_CYC_O <= '0'; 
+      I_CYC_O <= '0'; 
+      D_CYC_O <= '0'; 
+      intr_ce <= '0';
+      ir_ce <= '0'; 
+      mdri_ce <= '0'; 
+      mdri_hl_zse_sign <= '0'; 
+      intno_mux_sel <= "000";
+      adin_mux_sel <= "000"; 
+      rf_adwe <= '0'; 
+      pcin_mux_sel <= "00"; 
+      pc_pre <= '0';
+      pc_ce <= '0'; 
+      spin_mux_sel <= '0'; 
+      sp_pre <= '0'; 
+      sp_ce <= '0';
+      alua_mux_sel <= "00"; 
+      alub_mux_sel <= "000"; 
+      sbin_mux_sel <= '0';
+      asopsel <= "0000"; 
+      coszin_mux_sel <= '0'; 
+      flags_rst <= '0';
+      flags_ce <= '0'; 
+      flags_cfce <= '0'; 
+      flags_ifce <= '0';
+      flags_clc <= '0'; 
+      flags_cmc <= '0'; 
+      flags_stc <= '0';
+      flags_cli <= '0'; 
+      flags_sti <= '0'; 
+      marin_mux_sel <= "00";
+      mar_ce <= '0'; 
+      dfh_ce <= '0'; 
+      mdroin_mux_sel <= "000";
+      mdro_ce <= '0'; 
+      mdro_oe <= '0'; 
       
       case cur_state is
 --//////////////////////////////////////
@@ -1206,7 +1253,7 @@ begin
                   end if;
             --------------------------------------------
                when ic_acall =>
-                  if ack_sync = '0' then
+                  if ack_sync = '1' then
                      -- pc = tr2
                      alua_mux_sel <= alua_mux_sel_tr2;
                      alub_mux_sel <= alub_mux_sel_0;
@@ -1224,7 +1271,7 @@ begin
                   end if;
             --------------------------------------------
                when ic_lcall =>
-                  if ack_sync = '0' then
+                  if ack_sync = '1' then
                      -- pc += tr2
                      alua_mux_sel <= alua_mux_sel_pc;
                      alub_mux_sel <= alub_mux_sel_tr2;
@@ -1242,7 +1289,7 @@ begin
                   end if;
             ------------------------------------------
                 when ic_scall =>
-                  if ack_sync = '0' then
+                  if ack_sync = '1' then
                      -- pc += tr2
                      alua_mux_sel <= alua_mux_sel_pc;
                      alub_mux_sel <= alub_mux_sel_tr3;
@@ -1260,7 +1307,7 @@ begin
                   end if;           
             -----------------------------------------
                when ic_ret =>
-                  if ack_sync = '0' then
+                  if ack_sync = '1' then
                      -- pc = mdri
                      pcin_mux_sel <= pcin_mux_sel_mdri;
                      pc_ce <= '1';
@@ -1301,7 +1348,7 @@ begin
                   end if;                 
             -----------------------------------------
                when ic_iret =>
-                  if ack = '1' then
+                  if ack_sync = '1' then
                      -- pc = mdri
                      pcin_mux_sel <= pcin_mux_sel_mdri;
                      pc_ce <= '1';
@@ -1516,11 +1563,11 @@ begin
                      --
                      nxt_state <= int_chk;
                   else
-                     mdro_oe <= '1';
-                     -- write byte
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     mdri_ce <= '1';
+                     -- try reading word
+                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
-                     nxt_state <= exec4;                     
+                     nxt_state <= exec4;                   
                   end if;
             ---------------------------------------------- 
                when others => 

@@ -34,7 +34,6 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
-
 entity sync is
    port
    (
@@ -43,18 +42,6 @@ entity sync is
    q : out std_logic
    );
 end sync;
-
-architecture Behavioral of sync is
-   signal t : std_logic;
-begin
-   process(clk)
-   begin
-      if rising_edge(CLK) then
-         t <= d;
-         q <= t;   
-      end if;   
-   end process;
-end Behavioral;
 
 architecture behave2 of sync is
   signal t : std_logic;
@@ -71,6 +58,3 @@ begin
   end process;
 end behave2;
 
-
-
-  
