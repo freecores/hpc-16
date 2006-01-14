@@ -43,109 +43,112 @@ entity fcmp is
 end fcmp;
 
 architecture Behavioral of fcmp is
-   signal CF_in : std_logic;
-   signal OF_in : std_logic;
-   signal SF_in : std_logic;
-   signal ZF_in : std_logic;
 begin
    process(tttnField_in, flags_in) is 
+      -----------------------------------------------------
+      -- "refactored" on 14Jan2006
+      -----------------------------------------------------
+      variable CF_in : std_logic;
+      variable OF_in : std_logic;
+      variable SF_in : std_logic;
+      variable ZF_in : std_logic;      
    begin
-      CF_in <= Flags_in(3);
-      OF_in <= Flags_in(2);
-      SF_in <= Flags_in(1);
-      ZF_in <= Flags_in(0);
+      CF_in := flags_in(3);
+      OF_in := flags_in(2);
+      SF_in := flags_in(1);
+      ZF_in := flags_in(0);
 
       case tttnField_in is
          when "0000" => -- JO
             if OF_in = '1' then 
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if; 
          when "0001" => -- JNO
             if OF_in = '0' then 
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if; 
          when "0010" => -- JB or JNAE
             if CF_in = '1' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "0011" => -- JNB or JAE
             if CF_in = '0' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;                  
          when "0100" => -- JE or JZ
             if ZF_in = '1' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;           
          when "0101" => -- JNE or JNZ
             if ZF_in = '0' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;                 
          when "0110" => -- JBE or JNA
             if (CF_in or ZF_in) = '1' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "0111" => -- JNBE or JA
             if (CF_in or ZF_in) = '0' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "1000" => -- JS
             if SF_in = '1' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "1001" => -- JNS
             if SF_in = '0' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "1010" => 
-            Result_out <= '0';
+            result_out <= '0';
          when "1011" =>
-            Result_out <= '0';
+            result_out <= '0';
          when "1100" => -- JL or JNGE 
             if (SF_in xor OF_in) = '1' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "1101" => -- JNL or JGE
             if (SF_in xor OF_in) = '0' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;            
          when "1110" => -- JLE or JNG
             if ((SF_in xor OF_in) or ZF_in) = '1' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when "1111" => -- JNLE or JG
             if ((SF_in xor OF_in) or ZF_in) = '0' then
-               Result_out <= '1';
+               result_out <= '1';
             else 
-               Result_out <= '0';
+               result_out <= '0';
             end if;
          when others =>
-            Result_out <= '0';
+            result_out <= '0';
       end case;        
    end process;
 
