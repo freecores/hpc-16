@@ -97,7 +97,8 @@ entity con1 is
    marin_mux_sel : out std_logic_vector(1 downto 0);
    mar_ce : out std_logic;
    mdroin_mux_sel : out std_logic_vector(2 downto 0);
-   mdro_ce : out std_logic
+   mdro_ce : out std_logic;
+   rst2 : out std_logic -- @new
    );   
 end con1;
 architecture rtl of con1 is
@@ -107,25 +108,63 @@ architecture rtl of con1 is
    signal cur_state , nxt_state : state; 
    signal cur_ic : ic; 
    signal asopsel : std_logic_vector(3 downto 0);
+   
+   signal rsync_stage0 : std_logic; 
+
+   signal isync_stage0   : std_logic; 
+   signal isync_stage1   : std_logic;
+   signal isync_stage2   : std_logic;
+   signal isync          : std_logic;
+   signal intr_sync_rst  : std_logic;
+   signal isync_status   : std_logic_vector(1 downto 0);
            
 begin
-   rsync : sync
-   port map 
-   (
-      d => RST_I, clk => CLK_I, q => rst_sync
-   ); 
-      
-   async : sync
-   port map 
-   (
-      d => ACK_I, clk => CLK_I, q => ack_sync
-   );
+   process(CLK_I)
+   begin
+      if rising_edge(CLK_I) then
+         rsync_stage0 <= RST_I;
+         rst_sync     <= rsync_stage0;
+      end if;   
+   end process;
+
+   process(CLK_I, rst_sync)
+   begin
+      if rst_sync = '1' then
+         ack_sync     <= '0';
+      elsif rising_edge(CLK_I)then
+         ack_sync     <= ACK_I; 
+      end if;   
+   end process;
    
-   isync : sync 
-   port map
-   (
-      d => INTR_I, clk => CLK_I, q => intr_sync
-   ); 
+   process(CLK_I, rst_sync)
+   begin
+      if rst_sync = '1' then
+         isync_stage0 <= '0';
+         isync_stage1 <= '0';
+         isync_stage2 <= '0';
+      elsif rising_edge(CLK_I)then
+         isync_stage0 <= INTR_I;
+         isync_stage1 <= isync_stage0;
+         isync_stage2 <= isync_stage1;
+      end if;   
+   end process;
+   
+   isync <= isync_stage0 and isync_stage1 and not isync_stage2;
+   
+   isync_status <= intr_sync_rst & isync;
+   
+   process(CLK_I, rst_sync)
+   begin
+      if rst_sync = '1' then
+         intr_sync <= '0';
+      elsif rising_edge(CLK_I) then
+	       case isync_status is
+	          when "10" | "00"=> intr_sync <= '0';
+	          when "11" | "01"=> intr_sync <= '1';
+	          when others     => intr_sync <= '0';
+	       end case;
+      end if;   
+   end process;
 
    process(CLK_I, rst_sync)
    begin
@@ -234,12 +273,18 @@ begin
       mar_ce <= '0'; 
       dfh_ce <= '0'; 
       mdroin_mux_sel <= "000";
-      mdro_ce <= '0'; 
+      mdro_ce <= '0';
+      rst2 <= '0'; -- @new
       
       case cur_state is
 --//////////////////////////////////////
          when reset =>
-            pc_pre <= '1'; flags_rst <= '1';
+            pc_pre <= '1'; 
+            flags_rst <= '1';
+            -- @new start
+            sp_pre <= '1';
+            rst2 <= '1';
+            -- @new end            
             if rst_sync = '0' then
                nxt_state <= fetch0;
             else
@@ -264,7 +309,7 @@ begin
             end if;
 --///////////////////////////////////////
          when fetch1 =>
-            -- read instruction
+            -- read instruction; note STB_O is one shot
             SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; I_CYC_O <= '1';
             -- prepare ir
             ir_ce <= '1';
@@ -277,7 +322,7 @@ begin
                nxt_state <= exec0;
             else
                -- continue read & prepare ir
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; I_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; I_CYC_O <= '1';
                ir_ce <= '1';
                --
                nxt_state <= fetch2;
@@ -773,7 +818,7 @@ begin
                   nxt_state <= int_chk;
             ----------------------------------------------
                when ic_hlt =>
-                  flags_sti <= '1';
+                  --flags_sti <= '1';
                   nxt_state <= halted;
             ----------------------------------------------
                when ic_invalid =>
@@ -847,7 +892,7 @@ begin
                   nxt_state <= int_chk;
             --------------------------------------------
                when others =>
-                  null;
+                  nxt_state <= halted; -- @new
             end case;
 --///////////////////////////////////////
          when exec2 =>
@@ -862,7 +907,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -882,7 +927,7 @@ begin
                      nxt_state <= exec3; 
                   else
                      -- try reading const word data
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -901,7 +946,7 @@ begin
                      nxt_state <= exec3; 
                   else
                      -- try reading const word data
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -923,7 +968,7 @@ begin
                      nxt_state <= exec3; 
                   else
                      -- try reading const word data
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -945,7 +990,7 @@ begin
                      nxt_state <= exec3; 
                   else
                      -- try reading const word data
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -957,7 +1002,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try write data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      -- 
                      nxt_state <= exec2;
                   end if;
@@ -980,7 +1025,7 @@ begin
                      else
                         SEL_O <= "01";
                      end if;
-                     STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      mdri_ce <= '1';
                      --
@@ -1005,7 +1050,7 @@ begin
                      else
                         SEL_O <= "01";
                      end if;
-                     STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      mdri_ce <= '1';
                      --
@@ -1022,7 +1067,7 @@ begin
                      else
                         SEL_O <= "01";   
                      end if;
-                     STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec2;
                   end if;
@@ -1038,7 +1083,7 @@ begin
                      nxt_state <= exec3; 
                   else
                      -- try reading const word data
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1054,7 +1099,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1070,7 +1115,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1108,7 +1153,7 @@ begin
                      nxt_state <= exec3;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1129,7 +1174,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1150,7 +1195,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1169,7 +1214,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1188,7 +1233,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading const word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; C_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; C_CYC_O <= '1';
                      -- prepare mdri
                      mdri_ce <= '1';
                      --
@@ -1200,7 +1245,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try writing data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec2;
                   end if;
@@ -1213,7 +1258,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      mdri_ce <= '1';
                      --
@@ -1231,7 +1276,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading word data 
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      mdri_ce <= '1';
                      --
@@ -1250,7 +1295,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try writing data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec2;
                   end if;
@@ -1267,7 +1312,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try writing data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec2;
                   end if;
@@ -1284,7 +1329,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try writing data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec2;
                   end if;           
@@ -1298,7 +1343,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- try reading data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      mdri_ce <= '1';
                      --
@@ -1323,7 +1368,7 @@ begin
                      nxt_state <= exec3;
                   else
                      -- try writing data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec2;
                   end if;                 
@@ -1345,7 +1390,7 @@ begin
                      nxt_state <= exec3;
                   else
                      -- try reading data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      mdri_ce <= '1';
                      --
@@ -1353,7 +1398,7 @@ begin
                   end if;
             --------------------------------------------
                when others =>
-                  null;
+                  nxt_state <= halted; -- @new
              -------------------------------------------
             end case;                  
 --///////////////////////////////////////            
@@ -1425,7 +1470,7 @@ begin
                   nxt_state <= exec4;
             ----------------------------------------------
                when others =>
-                  null;
+                  nxt_state <= halted; -- @new
             ----------------------------------------------
             end case;
 --///////////////////////////////////////
@@ -1441,7 +1486,7 @@ begin
                   else
                      mdri_ce <= '1';
                      -- read data word                     
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec4;
                   end if;
@@ -1451,7 +1496,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- write data word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec4;
                   end if;
@@ -1474,7 +1519,7 @@ begin
                      else
                         SEL_O <= "01";
                      end if;
-                     STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec4;
                   end if;
@@ -1497,7 +1542,7 @@ begin
                      else
                         SEL_O <= "01";
                      end if;
-                     STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec4;
                   end if;           
@@ -1523,7 +1568,7 @@ begin
                      nxt_state <= int_chk;
                   else
                      -- write word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec4;
                   end if;
@@ -1540,13 +1585,13 @@ begin
                   else
                      mdri_ce <= '1';
                      -- try reading word
-                     SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; D_CYC_O <= '1';
+                     SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; D_CYC_O <= '1';
                      --
                      nxt_state <= exec4;                   
                   end if;
             ---------------------------------------------- 
                when others => 
-                  null;
+                  nxt_state <= halted; -- @new;
             ----------------------------------------------              
             end case;      
 --///////////////////////////////////////
@@ -1562,12 +1607,12 @@ begin
                else
                   SEL_O <= "01";
                end if;
-               STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                nxt_state <= exec5;
             end if;
          when others =>
-            null;
+            nxt_state <= halted; -- @new
       end case;      
 --///////////////////////////////////////
          when int_chk =>
@@ -1577,6 +1622,10 @@ begin
                   SEL_O <= "10"; STB_O <= '1'; CYC_O <= '1'; INTA_CYC_O <= '1';
                   -- prepare intr
                   intr_ce <= '1';
+                  -- clear intr_sync
+                  intr_sync_rst <= '1';
+                  -- clear IF 
+                  flags_cli <= '1';
                   --
                   nxt_state <= int0;
                else
@@ -1615,7 +1664,7 @@ begin
                end if;               
             else
                -- try reading vector number
-               SEL_O <= "10"; STB_O <= '1'; CYC_O <= '1'; INTA_CYC_O <= '1';
+               SEL_O <= "10"; STB_O <= '0'; CYC_O <= '1'; INTA_CYC_O <= '1';
                --
                intr_ce <= '1';
                --
@@ -1647,7 +1696,7 @@ begin
                nxt_state <= int3;
             else
                -- try writing data word (flags)
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= int2;
@@ -1669,7 +1718,7 @@ begin
                nxt_state <= fetch0;
             else
                -- writing pc 
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= int4;
@@ -1729,7 +1778,7 @@ begin
                nxt_state <= invalid3;
             else
                -- try writing data word (flags)
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= invalid2;
@@ -1751,7 +1800,7 @@ begin
                nxt_state <= fetch0;
             else
                -- writing pc 
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= invalid4;
@@ -1811,7 +1860,7 @@ begin
                nxt_state <= align3;
             else
                -- try writing data word (flags)
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= align2;
@@ -1833,7 +1882,7 @@ begin
                nxt_state <= fetch0;
             else
                -- writing pc 
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= align4;
@@ -1880,7 +1929,7 @@ begin
                --
                nxt_state <= stkerr4;              
             else
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                nxt_state <= stkerr3;
             end if;
 --///////////////////////////////////////
@@ -1905,7 +1954,7 @@ begin
                --
                nxt_state <= stkerr6;              
             else
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                nxt_state <= stkerr5;
             end if;
 --///////////////////////////////////////
@@ -1922,7 +1971,7 @@ begin
                nxt_state <= fetch0;               
             else
                -- writing pc 
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= stkerr7;            
@@ -1966,7 +2015,7 @@ begin
                --
                nxt_state <= df4;
             else
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                nxt_state <= df3;            
             end if;
 --///////////////////////////////////////
@@ -1991,7 +2040,7 @@ begin
                --
                nxt_state <= df6;
             else
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                nxt_state <= df5;            
             end if;
 --///////////////////////////////////////            
@@ -2016,7 +2065,7 @@ begin
                --
                nxt_state <= df8;
             else
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                nxt_state <= df7;            
             end if;
 --///////////////////////////////////////
@@ -2033,7 +2082,7 @@ begin
                nxt_state <= fetch0;               
             else
                -- writing pc 
-               SEL_O <= "11"; STB_O <= '1'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
+               SEL_O <= "11"; STB_O <= '0'; CYC_O <= '1'; WE_O <= '1'; D_CYC_O <= '1';
                --
                --
                nxt_state <= df9;                
