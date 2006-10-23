@@ -272,6 +272,7 @@ begin
       mdro_ce <= '0'; 
       mdro_oe <= '0';
       rst2 <= '0'; -- @new
+      intr_sync_rst <= '0';
       
       case cur_state is
 --//////////////////////////////////////
