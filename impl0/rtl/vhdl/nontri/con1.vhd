@@ -110,20 +110,21 @@ architecture rtl of con1 is
    signal asopsel : std_logic_vector(3 downto 0);
    
    signal rsync_stage0 : std_logic; 
+   signal rsync_stage1 : std_logic;
 
    signal isync_stage0   : std_logic; 
    signal isync_stage1   : std_logic;
    signal isync_stage2   : std_logic;
    signal isync          : std_logic;
    signal intr_sync_rst  : std_logic;
-   signal isync_status   : std_logic_vector(1 downto 0);
-           
+          
 begin
    process(CLK_I)
    begin
       if rising_edge(CLK_I) then
          rsync_stage0 <= RST_I;
-         rst_sync     <= rsync_stage0;
+         rsync_stage1 <= rsync_stage0;
+         rst_sync     <= rsync_stage1;
       end if;   
    end process;
 
@@ -151,20 +152,18 @@ begin
    
    isync <= isync_stage0 and isync_stage1 and not isync_stage2;
    
-   isync_status <= intr_sync_rst & isync;
-   
    process(CLK_I, rst_sync)
    begin
       if rst_sync = '1' then
          intr_sync <= '0';
-      elsif rising_edge(CLK_I) then
-	       case isync_status is
-	          when "10" | "00"=> intr_sync <= '0';
-	          when "11" | "01"=> intr_sync <= '1';
-	          when others     => intr_sync <= '0';
-	       end case;
-      end if;   
-   end process;
+      elsif rising_edge(CLK_I) then      
+         if intr_sync_rst = '1' then
+            intr_sync <= '0';
+         elsif isync = '1' then
+            intr_sync <= '1';
+         end if;         
+      end if;
+   end process;   
 
    process(CLK_I, rst_sync)
    begin
