@@ -78,7 +78,8 @@ architecture struct of cpu is
       signal pcin_mux_sel, alua_mux_sel, marin_mux_sel : std_logic_vector(1 downto 0);
       
       
-     
+   for control : con1 use entity work.con1(rtlfast);
+   
 begin
   
   assert pc_preset_value(0) = '0' and sp_preset_value(0) = '0'

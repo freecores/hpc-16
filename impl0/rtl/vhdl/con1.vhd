@@ -93,8 +93,7 @@ entity con1 is
    mar_ce : out std_logic;
    mdroin_mux_sel : out std_logic_vector(2 downto 0);
    mdro_ce : out std_logic; 
-   mdro_oe : out std_logic;
-   rst2 : out std_logic -- @new
+   mdro_oe : out std_logic
    );   
 end con1;
 architecture rtl of con1 is
@@ -271,7 +270,6 @@ begin
       mdroin_mux_sel <= "000";
       mdro_ce <= '0'; 
       mdro_oe <= '0';
-      rst2 <= '0'; -- @new
       intr_sync_rst <= '0';
       
       case cur_state is
@@ -281,7 +279,6 @@ begin
             flags_rst <= '1';
             -- @new start
             sp_pre <= '1';
-            rst2 <= '1';
             -- @new end
             if rst_sync = '0' then
                nxt_state <= fetch0;
@@ -819,7 +816,7 @@ begin
                   nxt_state <= int_chk;
             ----------------------------------------------
                when ic_fop_sti =>
-                  flags_stc <= '1';
+                  flags_sti <= '1';
                   nxt_state <= int_chk;
             ----------------------------------------------
                when ic_nop =>
@@ -2157,7 +2154,7 @@ begin
             end if;
 --///////////////////////////////////////
          when halted =>
-            if intr_sync = '1' then
+            if int_flag = '1' and intr_sync = '1' then
                -- read vector no.
                SEL_O <= "10"; STB_O <= '1'; CYC_O <= '1'; INTA_CYC_O <= '1';
                -- prepare intr
