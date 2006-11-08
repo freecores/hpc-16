@@ -42,8 +42,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 use work.cpu_pkg.all;
 entity cpu is
    generic
-   ( 
-     pc_preset_value : std_logic_vector(15 downto 0) := X"0000";  
+   (
+     pc_preset_value : std_logic_vector(15 downto 0) := X"0000";
      sp_preset_value : std_logic_vector(15 downto 0) := X"0000"
    );
    port(
@@ -66,34 +66,34 @@ entity cpu is
       DAT_O : out std_logic_vector(15 downto 0);
       --
       ADR_O : out std_logic_vector(15 downto 0)
-   );   
+   );
 end cpu;
 
 architecture struct of cpu is
     signal jcc_ok , int_flag , pc0 , sp0 , mar0 , tr20, intr_ce, ir_ce ,
-           mdri_ce, mdri_hl_zse_sign, rf_adwe, pc_pre, pc_ce, 
+           mdri_ce, mdri_hl_zse_sign, rf_adwe, pc_pre, pc_ce,
              spin_mux_sel, sp_pre, sp_ce, dfh_ce,
-             sbin_mux_sel, asresult_mux_sel, coszin_mux_sel, 
-             flags_rst, flags_ce, flags_cfce, flags_ifce, 
-             flags_clc, flags_cmc, flags_stc, flags_cli, flags_sti, 
-             mar_ce, mdro_ce : std_logic;      
-      
+             sbin_mux_sel, asresult_mux_sel, coszin_mux_sel,
+             flags_rst, flags_ce, flags_cfce, flags_ifce,
+             flags_clc, flags_cmc, flags_stc, flags_cli, flags_sti,
+             mar_ce, mdro_ce : std_logic;
+
       signal ir_high : std_logic_vector(7 downto 0);
-    
-      signal intno_mux_sel, adin_mux_sel,  
+
+      signal intno_mux_sel, adin_mux_sel,
              alub_mux_sel, aopsel, sopsel, mdroin_mux_sel : std_logic_vector(2 downto 0);
-    
+
       signal pcin_mux_sel, alua_mux_sel, marin_mux_sel : std_logic_vector(1 downto 0);
-      
-    for control : con1 use entity work.con1(rtlfast);     
-     
+
+    for control : con1 use entity work.con1(rtl);
+
 begin
-  
+
   assert pc_preset_value(0) = '0' and sp_preset_value(0) = '0'
     report "the preset values of sp and pc should be even"
     severity failure;
-  
-  control: con1 
+
+  control: con1
    PORT MAP(
     CLK_I => CLK_I,
     RST_I => RST_I,
@@ -149,12 +149,12 @@ begin
     mdroin_mux_sel => mdroin_mux_sel,
     mdro_ce => mdro_ce
   );
-    
-      datapath : dp 
+
+      datapath : dp
    generic map
-   (                               
-        pc_preset_value => pc_preset_value,  
-              sp_preset_value => sp_preset_value       
+   (
+        pc_preset_value => pc_preset_value,
+              sp_preset_value => sp_preset_value
    )
    PORT MAP(
     CLK_I => CLK_I,
